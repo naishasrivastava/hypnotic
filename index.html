@@ -1,1 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hypnotic</title>
+  <link rel="icon" type="image/png" href="hypnotic.png">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=Courier+Prime&display=swap');
 
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: 'Cormorant Garamond', serif;
+    }
+
+    #canvas-container { position: fixed; inset: 0; }
+    #canvas-container canvas { display: block; }
+
+    /* ── Title screen ── */
+    #title-screen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 20; background: #000;
+      transition: opacity 1.2s ease;
+    }
+    #title-screen h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 300;
+      font-size: clamp(3rem, 12vw, 9rem);
+      letter-spacing: 0.35em; color: #fff;
+      text-transform: uppercase;
+      animation: breathe 4s ease-in-out infinite;
+    }
+    #title-screen p {
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.7rem; letter-spacing: 0.3em;
+      color: rgba(255,255,255,0.35); margin-top: 2rem;
+      text-transform: uppercase;
+      animation: breathe 4s ease-in-out infinite 0.5s;
+    }
+    #enter-btn {
+      margin-top: 3.5rem; padding: 0.8rem 3rem;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.6);
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.65rem; letter-spacing: 0.4em;
+      text-transform: uppercase; cursor: pointer;
+      transition: all 0.4s ease;
+    }
+    #enter-btn:hover {
+      border-color: rgba(255,255,255,0.7);
+      color: #fff; background: rgba(255,255,255,0.05);
+    }
+    @keyframes breathe {
+      0%, 100% { opacity: 0.9; } 50% { opacity: 0.4; }
+    }
+
+    /* ── Bottom bar ── */
+    #bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 1.5rem 2.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      z-index: 15; pointer-events: none;
+      opacity: 0; transition: opacity 0.8s ease;
+    }
+    #bar.visible { opacity: 1; }
+    #scene-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic; font-weight: 300;
+      font-size: 1.1rem; letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.45);
+    }
+    #counter {
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.6rem; letter-spacing: 0.3em;
+      color: rgba(255,255,255,0.2);
+    }
+
+    /* ── Nav arrows ── */
+    .nav-btn {
+      position: fixed; top: 50%; transform: translateY(-50%);
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.7);
+      font-size: 1.1rem; cursor: pointer;
+      width: 2.6rem; height: 2.6rem;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      z-index: 15; opacity: 0;
+      transition: opacity 0.8s ease, background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+      font-family: 'Cormorant Garamond', serif;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .nav-btn.visible { opacity: 1; }
+    .nav-btn:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.45);
+      color: #fff;
+    }
+    #prev { left: 1.2rem; } #next { right: 1.2rem; }
+
+    /* ── Dots — sits above a gradient so they're always readable ── */
+    #dots-wrap {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: 7rem;
+      /* subtle gradient vignette so dots read over any artwork */
+      background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%);
+      display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 1.6rem;
+      z-index: 14;
+      opacity: 0; transition: opacity 0.8s ease;
+      pointer-events: none;
+    }
+    #dots-wrap.visible { opacity: 1; }
+    #dots {
+      display: flex; gap: 0.55rem;
+      pointer-events: all;
+    }
+    .dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      transition: background 0.4s, transform 0.4s;
+      cursor: pointer;
+    }
+    .dot.active { background: rgba(255,255,255,0.9); transform: scale(1.45); }
+
+    /* ── Overlay (black fade between scenes) ── */
+    #overlay {
+      position: fixed; inset: 0; background: #000;
+      z-index: 12; pointer-events: none; opacity: 0;
+    }
+    /* flower gets a long slow fade-in after black */
+    #overlay.fade-out-slow {
+      transition: opacity 1.6s ease;
+      opacity: 0;
+    }
+    #overlay.fade-in {
+      transition: opacity 0.45s ease;
+      opacity: 1;
+    }
+    #overlay.fade-in-instant { opacity: 1; transition: none; }
+
+    /* ── Save button ── */
+    #save-btn {
+      position: fixed; top: 1.2rem; right: 1.4rem;
+      z-index: 15; opacity: 0;
+      transition: opacity 0.8s ease;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+      width: 2.6rem; height: 2.6rem;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      transition: opacity 0.8s ease, background 0.25s ease, border-color 0.25s ease;
+    }
+    #save-btn.visible { opacity: 1; }
+    #save-btn:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.45);
+    }
+    #save-btn svg { display: block; }
+
+    /* save keyboard hint */
+    #save-hint {
+      position: fixed; top: 1.55rem; right: 5.4rem;
+      z-index: 15; opacity: 0;
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.5rem; letter-spacing: 0.2em;
+      color: rgba(255,255,255,0.65
+                 );
+      text-transform: uppercase;
+      transition: opacity 0.8s ease;
+      white-space: nowrap;
+    }
+    #save-hint.visible { opacity: 1; }
+
+    /* white flash on save */
+    #save-flash {
+      position: fixed; inset: 0; background: #fff;
+      z-index: 50; pointer-events: none; opacity: 0;
+    }
+    #save-flash.flash { animation: flashAnim 0.4s ease forwards; }
+    @keyframes flashAnim { 0% { opacity: 0.5; } 100% { opacity: 0; } }
+  </style>
+</head>
+<body>
+
+<div id="title-screen">
+  <h1>Hypnotic</h1>
+  <p>a collection of generative meditations</p>
+  <button id="enter-btn">Enter</button>
+</div>
+
+<div id="canvas-container"></div>
+<div id="overlay"></div>
+
+<div id="bar">
+  <div id="scene-name"></div>
+  <div id="counter"></div>
+</div>
+
+<div id="dots-wrap">
+  <div id="dots"></div>
+</div>
+
+<button class="nav-btn" id="prev">&#8592;</button>
+<button class="nav-btn" id="next">&#8594;</button>
+
+<button id="save-btn" title="Save image (S)">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+</button>
+<div id="save-hint">press S to save</div>
+<div id="save-flash"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// SCENES
+// ═══════════════════════════════════════════════════════════════════════════
+
+const scenes = [
+
+  // 1 ── The Flower (original)
+  {
+    name: "the flower",
+    slowFadeIn: true,   // flag: black → flower with long fade
+    rot: [],
+    init() { this.rot = Array.from({length: 20}, () => 0); },
+    draw(p) {
+      p.background(0);
+      p.blendMode(p.DIFFERENCE);
+      p.translate(p.width/2, p.height/2);
+      const sc = Math.min(p.width, p.height) / 600;
+      p.noStroke(); p.fill(255);
+      for (let i = 0; i < 20; i++) {
+        p.beginShape();
+        for (let j = 0; j < 500; j++) {
+          const a = j / 500 * Math.PI * 2;
+          const fr = 15 * sc * Math.cos(a * 7);
+          const r  = (200 - i * 10) * sc + fr;
+          p.curveVertex(r * Math.cos(a + this.rot[i]), r * Math.sin(a + this.rot[i]));
+        }
+        p.endShape(p.CLOSE);
+        this.rot[i] += (i + 1) * 0.0017;
+      }
+      p.blendMode(p.BLEND);
+    }
+  },
+
+  // 2 ── Lissajous Web
+  {
+    name: "lissajous web",
+    t: 0,
+    init() { this.t = 0; },
+    draw(p) {
+      p.background(0, 18);
+      p.translate(p.width/2, p.height/2);
+      const sc = Math.min(p.width, p.height) * 0.42;
+      p.noFill();
+      for (let ph = 0; ph < 12; ph++) {
+        const phase = ph * Math.PI * 2 / 12 + this.t * 0.3;
+        const alpha = 255 * (1 - ph / 14) * 0.7;
+        p.strokeWeight(0.6);
+        p.stroke(255, 255, 255, alpha);
+        p.beginShape();
+        for (let i = 0; i <= 600; i++) {
+          const a = i / 600 * Math.PI * 2;
+          p.vertex(sc * Math.sin(3 * a + phase), sc * Math.sin(2 * a + this.t * 0.4));
+        }
+        p.endShape();
+      }
+      this.t += 0.005;
+    }
+  },
+
+  // 3 ── Vortex
+  {
+    name: "the vortex",
+    t: 0,
+    init() { this.t = 0; },
+    draw(p) {
+      p.noStroke(); p.fill(0, 0, 0, 35);
+      p.rect(0, 0, p.width, p.height);
+
+      p.translate(p.width/2, p.height/2);
+      p.blendMode(p.ADD);
+      p.noFill();
+
+      const sc    = Math.min(p.width, p.height) * 0.44;
+      const ARMS  = 5;
+      const STEPS = 280;
+
+      for (let arm = 0; arm < ARMS; arm++) {
+        const baseAngle = arm * Math.PI * 2 / ARMS;
+
+        for (let i = 0; i < STEPS; i++) {
+          const f0 = i / STEPS;
+          const f1 = (i + 1) / STEPS;
+
+          const th0 = f0 * Math.PI * 6 + baseAngle + this.t;
+          const th1 = f1 * Math.PI * 6 + baseAngle + this.t;
+          const w0  = 1 + 0.18 * Math.sin(f0 * Math.PI * 3 - this.t * 2.5);
+          const w1  = 1 + 0.18 * Math.sin(f1 * Math.PI * 3 - this.t * 2.5);
+          const r0  = f0 * sc * w0;
+          const r1  = f1 * sc * w1;
+
+          const alpha = 200 * Math.sin(f0 * Math.PI);
+          const wt    = (1 - f0) * 2.8 + 0.4;
+
+          p.strokeWeight(wt);
+          p.stroke(255, 255, 255, alpha);
+          p.line(r0 * Math.cos(th0), r0 * Math.sin(th0),
+                 r1 * Math.cos(th1), r1 * Math.sin(th1));
+        }
+      }
+
+      p.blendMode(p.BLEND);
+      this.t += 0.018;
+    }
+  },
+
+// 4 ── Rose Engine (reimagined)
+  {
+    name: "rose engine",
+    t: 0,
+    init() { this.t = 0; },
+    draw(p) {
+      // very slow fade so trails linger
+      p.noStroke(); p.fill(0, 0, 0, 12);
+      p.rect(0, 0, p.width, p.height);
+
+      p.translate(p.width/2, p.height/2);
+      p.blendMode(p.DIFFERENCE);
+      p.noFill();
+      const sc = Math.min(p.width, p.height) * 0.46;
+
+      // Layer A — slow outer rings, k morphs continuously
+      const kA = 2 + 1.5 * Math.sin(this.t * 0.07);
+      p.stroke(255); p.strokeWeight(0.9);
+      p.beginShape();
+      for (let i = 0; i <= 1200; i++) {
+        const theta = i / 1200 * Math.PI * 2 * Math.ceil(kA) * 2;
+        const r = sc * Math.abs(Math.cos(kA * theta + this.t * 0.3));
+        p.vertex(r * Math.cos(theta), r * Math.sin(theta));
+      }
+      p.endShape();
+
+      // Layer B — counter-rotates, different k
+      const kB = 3 + Math.sin(this.t * 0.11) * 1.8;
+      p.stroke(255); p.strokeWeight(0.6);
+      p.beginShape();
+      for (let i = 0; i <= 1200; i++) {
+        const theta = i / 1200 * Math.PI * 2 * Math.ceil(kB) * 2;
+        const r = sc * 0.78 * Math.abs(Math.cos(kB * theta - this.t * 0.22));
+        p.vertex(r * Math.cos(theta), r * Math.sin(theta));
+      }
+      p.endShape();
+
+      // Layer C — inner tight rose spinning faster
+      const kC = 5 + Math.sin(this.t * 0.05) * 2;
+      p.stroke(255); p.strokeWeight(0.4);
+      p.beginShape();
+      for (let i = 0; i <= 1200; i++) {
+        const theta = i / 1200 * Math.PI * 2 * Math.ceil(kC) * 2;
+        const r = sc * 0.5 * Math.abs(Math.cos(kC * theta + this.t * 0.55));
+        p.vertex(r * Math.cos(theta), r * Math.sin(theta));
+      }
+      p.endShape();
+
+      // Layer D — hypotrochoid-style: r = cos(k*θ) + 0.5*cos(m*θ)
+      const kD = 7; const mD = 3 + Math.sin(this.t * 0.09);
+      p.stroke(255); p.strokeWeight(0.5);
+      p.beginShape();
+      for (let i = 0; i <= 2000; i++) {
+        const theta = i / 2000 * Math.PI * 20;
+        const r = sc * 0.62 * (Math.cos(kD * theta - this.t * 0.18) + 0.45 * Math.cos(mD * theta + this.t * 0.3));
+        p.vertex(r * Math.cos(theta), r * Math.sin(theta));
+      }
+      p.endShape();
+
+      p.blendMode(p.BLEND);
+      this.t += 0.008;
+    }
+  },
+
+  // 5 ── Concentric Pulse
+  {
+    name: "concentric pulse",
+    t: 0,
+    init() { this.t = 0; },
+    draw(p) {
+      // slow trail so rings ghost and layer up
+      p.noStroke(); p.fill(0, 0, 0, 18);
+      p.rect(0, 0, p.width, p.height);
+
+      p.translate(p.width/2, p.height/2);
+      p.noFill();
+
+      const sc    = Math.min(p.width, p.height) * 0.49;
+      const RINGS = 36;
+
+      // ── Set A: centered, steady, slow expansion wave ─────────────────
+      // A ripple pulse travels outward continuously
+      for (let r = 1; r <= RINGS; r++) {
+        const frac    = r / RINGS;
+        const radius  = frac * sc;
+        // wave: a bright ring sweeps from center outward every ~3s
+        const wave    = Math.sin(this.t * 3.5 - frac * Math.PI * 6);
+        const bright  = 60 + 180 * Math.max(0, wave);
+        const wt      = 0.4 + 1.4 * Math.max(0, wave);
+        p.strokeWeight(wt);
+        p.stroke(bright);
+        p.blendMode(p.ADD);
+        p.ellipse(0, 0, radius * 2, radius * 2);
+      }
+
+      // ── Set B: slightly off-center, orbits slowly ─────────────────────
+      const cx2 = sc * 0.22 * Math.cos(this.t * 0.18);
+      const cy2 = sc * 0.22 * Math.sin(this.t * 0.13);
+      for (let r = 1; r <= RINGS; r++) {
+        const frac   = r / RINGS;
+        const radius = frac * sc * 0.85;
+        const wave   = Math.sin(this.t * 2.8 - frac * Math.PI * 5 + 1.2);
+        const bright = 50 + 140 * Math.max(0, wave);
+        const wt     = 0.4 + 1.1 * Math.max(0, wave);
+        p.strokeWeight(wt);
+        p.stroke(bright);
+        p.blendMode(p.ADD);
+        p.ellipse(cx2, cy2, radius * 2, radius * 2);
+      }
+
+      // ── Set C: counter-orbit, smaller, faster pulse ───────────────────
+      const cx3 = sc * 0.18 * Math.cos(-this.t * 0.22 + 2.1);
+      const cy3 = sc * 0.18 * Math.sin(-this.t * 0.19 + 2.1);
+      for (let r = 1; r <= RINGS; r++) {
+        const frac   = r / RINGS;
+        const radius = frac * sc * 0.7;
+        const wave   = Math.sin(this.t * 4.2 - frac * Math.PI * 7 + 2.5);
+        const bright = 40 + 120 * Math.max(0, wave);
+        const wt     = 0.3 + 0.9 * Math.max(0, wave);
+        p.strokeWeight(wt);
+        p.stroke(bright);
+        p.blendMode(p.ADD);
+        p.ellipse(cx3, cy3, radius * 2, radius * 2);
+      }
+
+      // ── DIFFERENCE pass: two overlapping sets create moiré ────────────
+      p.blendMode(p.DIFFERENCE);
+      // static tight rings at center
+      for (let r = 1; r <= 20; r++) {
+        const frac   = r / 20;
+        const radius = frac * sc * 0.55;
+        const bright = 80 + 60 * Math.sin(this.t * 1.8 + frac * Math.PI * 4);
+        p.strokeWeight(0.6);
+        p.stroke(bright);
+        p.ellipse(0, 0, radius * 2, radius * 2);
+      }
+      // offset copy that drifts → creates interference with above
+      const ox = sc * 0.08 * Math.sin(this.t * 0.4);
+      const oy = sc * 0.08 * Math.cos(this.t * 0.35);
+      for (let r = 1; r <= 20; r++) {
+        const frac   = r / 20;
+        const radius = frac * sc * 0.55;
+        const bright = 80 + 60 * Math.sin(this.t * 1.8 + frac * Math.PI * 4);
+        p.strokeWeight(0.6);
+        p.stroke(bright);
+        p.ellipse(ox, oy, radius * 2, radius * 2);
+      }
+
+      p.blendMode(p.BLEND);
+      this.t += 0.011;
+    }
+  },
+
+  // 6 ── Moiré Drift  (smaller, tighter)
+  {
+    name: "moiré drift",
+    t: 0,
+    init() { this.t = 0; },
+    draw(p) {
+      p.background(0);
+      p.translate(p.width/2, p.height/2);
+      p.blendMode(p.DIFFERENCE);
+      p.stroke(255); p.noFill();
+      // smaller scale — was 0.5, now 0.28
+      const sc      = Math.min(p.width, p.height) * 0.28;
+      const cx1     =  Math.cos(this.t)       * sc * 0.18;
+      const cy1     =  Math.sin(this.t * 0.7) * sc * 0.18;
+      const cx2     = -cx1 * 0.75;
+      const cy2     = -cy1 * 0.75;
+      const spacing = 12;
+      const n       = Math.floor(sc / spacing) + 4;
+      for (let i = 1; i <= n; i++) {
+        p.strokeWeight(0.7);
+        p.ellipse(cx1, cy1, i * spacing * 2, i * spacing * 2);
+        p.ellipse(cx2, cy2, i * spacing * 2, i * spacing * 2);
+      }
+      p.blendMode(p.BLEND);
+      this.t += 0.007;
+    }
+  },
+
+  // 7 ── Breathing Spiral
+  {
+    name: "breathing spiral",
+    t: 0,
+    init() { this.t = 0; },
+    draw(p) {
+      p.noStroke(); p.fill(0, 0, 0, 28);
+      p.rect(0, 0, p.width, p.height);
+
+      p.translate(p.width/2, p.height/2);
+      p.blendMode(p.BLEND);
+      p.noFill();
+      const sc = Math.min(p.width, p.height) * 0.44;
+      const STEPS = 500;
+
+      for (let arm = 0; arm < 3; arm++) {
+        const offset = arm * Math.PI * 2 / 3;
+        for (let i = 0; i < STEPS; i++) {
+          const f0 = i / STEPS;
+          const f1 = (i + 1) / STEPS;
+          const th0 = f0 * Math.PI * 14 + this.t + offset;
+          const th1 = f1 * Math.PI * 14 + this.t + offset;
+          const b0  = 1 + 0.22 * Math.sin(f0 * Math.PI * 5 - this.t * 2.2);
+          const b1  = 1 + 0.22 * Math.sin(f1 * Math.PI * 5 - this.t * 2.2);
+          const r0  = f0 * sc * b0;
+          const r1  = f1 * sc * b1;
+          const alpha = 210 * Math.sin(f0 * Math.PI);
+          const wt    = 0.8 + (1 - f0) * 1.6;
+          p.strokeWeight(wt);
+          p.stroke(255, 255, 255, alpha);
+          p.line(r0 * Math.cos(th0), r0 * Math.sin(th0),
+                 r1 * Math.cos(th1), r1 * Math.sin(th1));
+        }
+      }
+      this.t += 0.012;
+    }
+  },
+
+  // 8 ── String Lattice
+  {
+    name: "string lattice",
+    t: 0,
+    init() { this.t = 0; },
+    draw(p) {
+      p.noStroke(); p.fill(0, 0, 0, 30);
+      p.rect(0, 0, p.width, p.height);
+
+      p.translate(p.width/2, p.height/2);
+      p.blendMode(p.BLEND);
+      p.noFill();
+
+      const sc = Math.min(p.width, p.height) * 0.46;
+      const N  = 40; // strings per axis
+
+      // Horizontal strings
+      for (let i = 0; i < N; i++) {
+        const frac = i / (N - 1);
+        const y    = (frac - 0.5) * sc * 1.8;
+        // each string oscillates with a travelling wave
+        const freq = 2 + frac * 3;
+        const amp  = 18 * Math.sin(this.t * 0.6 + frac * Math.PI * 2);
+        const alpha = 160 + 80 * Math.sin(frac * Math.PI);
+        p.strokeWeight(0.5);
+        p.stroke(255, 255, 255, alpha);
+        p.beginShape();
+        for (let j = 0; j <= 80; j++) {
+          const xf  = j / 80;
+          const x   = (xf - 0.5) * sc * 2;
+          const dy  = amp * Math.sin(xf * Math.PI * freq + this.t * 1.4 + frac * Math.PI);
+          p.vertex(x, y + dy);
+        }
+        p.endShape();
+      }
+
+      // Vertical strings
+      for (let i = 0; i < N; i++) {
+        const frac = i / (N - 1);
+        const x    = (frac - 0.5) * sc * 1.8;
+        const freq = 2 + frac * 3;
+        const amp  = 18 * Math.sin(this.t * 0.5 + frac * Math.PI * 2 + 1);
+        const alpha = 80 + 50 * Math.sin(frac * Math.PI);
+        p.strokeWeight(0.4);
+        p.stroke(255, 255, 255, alpha);
+        p.beginShape();
+        for (let j = 0; j <= 80; j++) {
+          const yf  = j / 80;
+          const y   = (yf - 0.5) * sc * 2;
+          const dx  = amp * Math.sin(yf * Math.PI * freq - this.t * 1.2 + frac * Math.PI);
+          p.vertex(x + dx, y);
+        }
+        p.endShape();
+      }
+
+      p.blendMode(p.BLEND);
+      this.t += 0.016;
+    }
+  }
+
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APP
+// ═══════════════════════════════════════════════════════════════════════════
+
+let current      = 0;
+let myP5         = null;
+let transitioning= false;
+
+const overlay    = document.getElementById('overlay');
+const bar        = document.getElementById('bar');
+const dotsWrap   = document.getElementById('dots-wrap');
+const dotsEl     = document.getElementById('dots');
+const nameEl     = document.getElementById('scene-name');
+const counterEl  = document.getElementById('counter');
+const prevBtn    = document.getElementById('prev');
+const nextBtn    = document.getElementById('next');
+const container  = document.getElementById('canvas-container');
+
+// Build dot indicators
+scenes.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'dot';
+  d.addEventListener('click', () => goTo(i));
+  dotsEl.appendChild(d);
+});
+
+function updateUI() {
+  nameEl.textContent  = scenes[current].name;
+  counterEl.textContent = String(current + 1).padStart(2,'0') + ' / ' + String(scenes.length).padStart(2,'0');
+  document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === current));
+}
+
+function startScene(idx) {
+  if (myP5) { myP5.remove(); myP5 = null; }
+  container.innerHTML = '';
+
+  const scene = scenes[idx];
+  scene.init();
+
+  myP5 = new p5(function(p) {
+    p.setup = function() {
+      p.pixelDensity(3);
+      const cnv = p.createCanvas(window.innerWidth, window.innerHeight);
+      cnv.parent(container);
+    };
+    p.draw = function() { scene.draw(p); };
+    p.windowResized = function() { p.resizeCanvas(window.innerWidth, window.innerHeight); };
+  });
+}
+
+function goTo(idx) {
+  if (transitioning) return;
+  transitioning = true;
+
+  const targetIdx   = ((idx % scenes.length) + scenes.length) % scenes.length;
+  const isFlower    = scenes[targetIdx].slowFadeIn;
+
+  // 1. Fade to black
+  overlay.className = '';
+  overlay.classList.add('fade-in');
+
+  const holdBlack = isFlower ? 900 : 450;
+
+  setTimeout(() => {
+    // 2. While black: swap scene
+    current = targetIdx;
+    startScene(current);
+    updateUI();
+
+    // 3. Fade back in — slow for flower, normal otherwise
+    setTimeout(() => {
+      if (isFlower) {
+        overlay.className = 'fade-out-slow';
+      } else {
+        overlay.style.transition = 'opacity 0.55s ease';
+        overlay.style.opacity    = '0';
+        setTimeout(() => { overlay.style.transition = ''; }, 600);
+      }
+      transitioning = false;
+    }, isFlower ? 200 : 80);
+
+  }, holdBlack);
+}
+
+prevBtn.addEventListener('click', () => goTo(current - 1));
+nextBtn.addEventListener('click', () => goTo(current + 1));
+
+// ── Save current frame as HQ PNG ──────────────────────────────────────────
+function saveFrame() {
+  if (!myP5) return;
+
+  const flash = document.getElementById('save-flash');
+  flash.classList.remove('flash');
+  void flash.offsetWidth;
+  flash.classList.add('flash');
+
+  // Render a fresh HQ frame at 3x device pixel ratio onto an offscreen canvas
+  const live = document.querySelector('#canvas-container canvas');
+  if (!live) return;
+
+  // p5 at pixelDensity(3): the canvas pixel size is already 3 * CSS size
+  // Just grab that canvas directly — it IS the HQ version
+  const sceneName = scenes[current].name.replace(/\s+/g, '-');
+  const ts = new Date().toISOString().slice(0,19).replace(/[T:]/g, '-');
+  const filename = `hypnotic-${sceneName}-${ts}.png`;
+
+  live.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, 'image/png');
+}
+
+document.getElementById('save-btn').addEventListener('click', saveFrame);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(current + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(current - 1);
+  if (e.key === 's' || e.key === 'S') saveFrame();
+});
+
+document.getElementById('enter-btn').addEventListener('click', () => {
+  const ts = document.getElementById('title-screen');
+
+  ts.style.opacity = '0';
+  ts.style.pointerEvents = 'none';
+
+  setTimeout(() => {
+    ts.style.display = 'none';
+
+    overlay.style.transition = 'none';
+    overlay.style.opacity = '1';
+
+    bar.classList.add('visible');
+    dotsWrap.classList.add('visible');
+    prevBtn.classList.add('visible');
+    nextBtn.classList.add('visible');
+    document.getElementById('save-btn').classList.add('visible');
+    document.getElementById('save-hint').classList.add('visible');
+
+    updateUI();
+    startScene(0);
+
+    setTimeout(() => {
+      overlay.style.transition = 'opacity 2s ease';
+      overlay.style.opacity = '0';
+    }, 400);
+
+  }, 1200);
+});
+</script>
+</body>
+</html>
