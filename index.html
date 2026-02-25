@@ -4,9 +4,27 @@
   <meta charset="utf-8">
   <title>Hypnotic</title>
   <link rel="icon" type="image/png" href="hypnotic.png">
+  <!-- Preconnect for faster font handshake -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  
+  <!-- Preload font files (optional but good for performance) -->
+  <link rel="preload"
+        href="https://fonts.gstatic.com/s/cormorantgaramond/v16/co3bmX5slCNuHLi8bLeY7w.ttf"
+        as="font"
+        type="font/woff2"
+        crossorigin>
+  
+  <link rel="preload"
+        href="https://fonts.gstatic.com/s/courierprime/v8/u-450q2lgwslOqpF_6gQ8kELaw.ttf"
+        as="font"
+        type="font/woff2"
+        crossorigin>
+  
+  <!-- Actual stylesheet load -->
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=Courier+Prime&display=swap"
+        rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=Courier+Prime&display=swap');
-
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
