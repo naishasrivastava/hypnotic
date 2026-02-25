@@ -672,7 +672,13 @@ function startScene(idx) {
 
   myP5 = new p5(function(p) {
     p.setup = function() {
-      p.pixelDensity(2);
+      // Set pixel density conditionally
+      if (scene.name === "rose engine") {
+        p.pixelDensity(2);  // lower density for rose engine
+      } else {
+        p.pixelDensity(3);  // default for other scenes
+      }
+
       const cnv = p.createCanvas(window.innerWidth, window.innerHeight);
       cnv.parent(container);
     };
